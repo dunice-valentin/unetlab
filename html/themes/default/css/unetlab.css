@@ -810,3 +810,15 @@ map area:focus,
 map area:visited {
     outline: none;
 }
+
+.custom-shape-form .form-group {
+  width: 100%;
+}
+
+#main > .form-group{
+    margin-bottom:15px;
+}
+
+.custom-shape-form .btn{
+    margin-right: 10px;
+}

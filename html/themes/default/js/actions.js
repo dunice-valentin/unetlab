@@ -141,11 +141,6 @@ $(document).on('mousedown', '*', function(e) {
 	}
 });
 
-// Prevent default context menu on viewport
-$(document).on('contextmenu', '*', function(e) {
-	e.preventDefault();  // Prevent default behaviour
-});
-
 // Open context menu block
 $(document).on('click', '.menu-collapse, .menu-collapse i', function(e) {
 	e.preventDefault();  // Prevent default behaviour
@@ -154,9 +149,25 @@ $(document).on('click', '.menu-collapse, .menu-collapse i', function(e) {
 	$('.' + item_class).slideToggle('slow');
 });
 
+$(document).on('contextmenu', '#lab-viewport', function(e) {
+  if(e.button == 2){
+    logger(1, 'DEBUG: action = opencontextmenu');
+    var body = '';
+    body += '<li><a class="action-nodeplace" href="#"><i class="glyphicon glyphicon-hdd"></i> ' + MESSAGES[81] + '</a></li>';
+    body += '<li><a class="action-networkplace" href="#"><i class="glyphicon glyphicon-transfer"></i> ' + MESSAGES[82] + '</a></li>';
+    body += '<li><a class="action-pictureadd" href="#"><i class="glyphicon glyphicon-picture"></i> ' + MESSAGES[83] + '</a></li>';
+    body += '<li><a class="action-customshapeadd" href="#"><i class="glyphicon glyphicon-unchecked"></i> ' + MESSAGES[145] + '</a></li>';
+    printContextMenu(MESSAGES[80], body, e.pageX, e.pageY);
+  }
+  // Prevent default context menu on viewport
+  e.stopPropagation();
+  e.preventDefault();
+});
+
 // Manage context menu
 $(document).on('contextmenu', '.context-menu', function(e) {
-	e.preventDefault();  // Prevent default behaviour
+  e.stopPropagation();
+  e.preventDefault();  // Prevent default behaviour
 	if ($(this).hasClass('node_frame') && !$(this).data("block-context-menu")) {
 		logger(1, 'DEBUG: opening node context menu');
 		var node_id = $(this).attr('data-path');
@@ -351,6 +362,18 @@ $(document).on('click', '.action-nodedelete', function(e) {
 	$('#context-menu').remove();
 });
 
+//Delete lab shape
+$(document).on('click', '.action-shapedelete', function(e) {  //TODO: finish delete chain - create ".action-shapedelete" element
+  logger(1, 'DEBUG: action = action-shapedelete');
+  var id = $(this).attr('data-path');
+  $.when(deleteShape(id)).done(function(values) {
+    $('#customShape' + id).remove();
+  }).fail(function(message) {
+    addModalError(message);
+  });
+  $('#context-menu').remove();
+});
+
 // Edit/print node interfaces
 $(document).on('click', '.action-nodeinterfaces', function(e) {
 	logger(1, 'DEBUG: action = action-nodeinterfaces');
@@ -365,7 +388,6 @@ $(document).on('click', '.action-nodeinterfaces', function(e) {
 	});
 	$('#context-menu').remove();
 });
-
 
 // Edit/print lab node
 $(document).on('click', '.action-nodeedit', function(e) {
@@ -487,6 +509,7 @@ $(document).on('click', '.action-labobjectadd', function(e) {
 	body += '<li><a class="action-nodeplace" href="#"><i class="glyphicon glyphicon-hdd"></i> ' + MESSAGES[81] + '</a></li>';
 	body += '<li><a class="action-networkplace" href="#"><i class="glyphicon glyphicon-transfer"></i> ' + MESSAGES[82] + '</a></li>';
 	body += '<li><a class="action-pictureadd" href="#"><i class="glyphicon glyphicon-picture"></i> ' + MESSAGES[83] + '</a></li>';
+  body += '<li><a class="action-customshapeadd" href="#"><i class="glyphicon glyphicon-unchecked"></i> ' + MESSAGES[145] + '</a></li>';
 	printContextMenu(MESSAGES[80], body, e.pageX, e.pageY);
 });
 
@@ -497,25 +520,35 @@ $(document).on('click', '.action-networkadd', function(e) {
 });
 
 // Place an object
-$(document).on('click', '.action-nodeplace, .action-networkplace', function(e) {
-	logger(1, 'DEBUG: action = nodeplace');
+$(document).on('click', '.action-nodeplace, .action-networkplace, .action-customshapeadd', function(e) {
 	var target = $(this);
 	var object, frame = '';
+
+  if(target.hasClass('action-customshapeadd')){
+    logger(1, 'DEBUG: action = customshapeadd');
+  } else {
+    logger(1, 'DEBUG: action = nodeplace');
+  }
+
 	$('#context-menu').remove();
 
-	if ($(this).hasClass('action-nodeplace')) {
+	if (target.hasClass('action-nodeplace')) {
 		object = 'node';
 		frame = '<div id="mouse_frame" class="context-menu node_frame"><img src="/images/icons/Router.png"/></div>';
 		$("#lab-viewport").addClass('lab-viewport-click-catcher');
-	} else if ($(this).hasClass('action-networkplace')) {
-		object = 'network';
-		frame = '<div id="mouse_frame" class="context-menu network_frame"><img src="/images/lan.png"/></div>';
-		$("#lab-viewport").addClass('lab-viewport-click-catcher');
-	} else {
+	} else if (target.hasClass('action-networkplace')) {
+    object = 'network';
+    frame = '<div id="mouse_frame" class="context-menu network_frame"><img src="/images/lan.png"/></div>';
+    $("#lab-viewport").addClass('lab-viewport-click-catcher');
+  } else if (target.hasClass('action-customshapeadd')) {
+    object = 'shape';
+    frame = '<div id="mouse_frame" class="context-menu network_frame"><img src="/images/icons/CustomShape.png"/></div>';
+    $("#lab-viewport").addClass('lab-viewport-click-catcher');
+  } else {
 		return false;
 	}
 
-	addMessage('info', MESSAGES[100])
+	addMessage('info', MESSAGES[100]);
 	if (!$('#mouse_frame').length) {
 		// Add the frame container if not exists
 		$('#lab-viewport').append(frame);
@@ -534,31 +567,32 @@ $(document).on('click', '.action-nodeplace, .action-networkplace', function(e) {
 		});
 	});
 
-	// On click open the form
-	$('.lab-viewport-click-catcher').click(function(e2) {
-		if ($(e2.target).is('#lab-viewport, #lab-viewport *')) {
-			// Click is within viewport
-			if ($('#mouse_frame').length > 0) {
-				// ESC not pressed
-				var values = {};
-				values['left'] = e2.pageX - 30;
-				values['top'] = e2.pageY;
-				if (object == 'node') {
-					printFormNode('add', values);
-				} else if (object == 'network') {
-					printFormNetwork('add', values);
-				}
-				$('#mouse_frame').remove();
-			}
-			$('#mouse_frame').remove();
-			$('.lab-viewport-click-catcher').off();
-		} else {
-			addMessage('warning', MESSAGES[101])
-			$('#mouse_frame').remove();
-			$('.lab-viewport-click-catcher').off();
-		}
-
-	});
+  // On click open the form
+  $('.lab-viewport-click-catcher').click(function(e2) {
+    if ($(e2.target).is('#lab-viewport, #lab-viewport *')) {
+      // Click is within viewport
+      if ($('#mouse_frame').length > 0) {
+        // ESC not pressed
+        var values = {};
+        values['left'] = e2.pageX - 30;
+        values['top'] = e2.pageY;
+        if (object == 'node') {
+          printFormNode('add', values);
+        } else if (object == 'network') {
+          printFormNetwork('add', values);
+        } else if (object == 'shape'){
+          printFormCustomShape(values);
+        }
+        $('#mouse_frame').remove();
+      }
+      $('#mouse_frame').remove();
+      $('.lab-viewport-click-catcher').off();
+    } else {
+      addMessage('warning', MESSAGES[101]);
+      $('#mouse_frame').remove();
+      $('.lab-viewport-click-catcher').off();
+    }
+  });
 });
 
 // Add picture
@@ -567,6 +601,141 @@ $(document).on('click', '.action-pictureadd', function(e) {
 	$('#context-menu').remove();
 	displayPictureForm();
 	//printFormPicture('add', null);
+});
+
+// Add shape
+$('body').on('submit', '.custom-shape-form', function(e) {
+
+  var shape_options = {},
+      shape_html,
+      dashed = '',
+      dash_spase_length = '10',
+      dash_line_length = '10',
+      z_index = 0,
+      radius,
+      scale,
+      coordinates,
+      current_lab;
+
+  shape_options['id'] = new Date().getTime(); // can get ID from  $('.custom-shape-form .id-shape').val();
+  shape_options['shape_type'] = $('.custom-shape-form .shape-type-select').val();
+  shape_options['shape_name'] = $('.custom-shape-form .shape_name').val();
+  shape_options['shape_border_type'] = $('.custom-shape-form .border-type-select').val();
+  shape_options['shape_border_color'] = $('.custom-shape-form .shape_border_color').val();
+  shape_options['shape_background_color'] = $('.custom-shape-form .shape_background_color').val();
+  shape_options['shape_width'] = 120;
+  shape_options['shape_height'] = 80;
+  shape_options['shape_border_width'] = 5;
+  shape_options['shape_left_coordinate'] = $('.custom-shape-form .left-coordinate').val();
+  shape_options['shape_top_coordinate'] = $('.custom-shape-form .top-coordinate').val();
+
+  coordinates = 'position:absolute;left:'+ shape_options['shape_left_coordinate'] + 'px;top:' + shape_options['shape_top_coordinate'] + 'px;';
+
+  if ( shape_options['shape_border_type'] == 'dashed'){
+    dashed = ' stroke-dasharray = "' + dash_line_length + ',' + dash_spase_length + '" '
+  } else {
+    dashed = ''
+  }
+
+  if (shape_options['shape_type'] == 'rectangle' || shape_options['shape_type'] == 'square'){
+
+    if(shape_options['shape_type'] == 'square'){
+      if(shape_options['shape_height'] > shape_options['shape_width']){
+        shape_options['shape_width'] = shape_options['shape_height'];
+      } else {
+        shape_options['shape_height'] = shape_options['shape_width'];
+      }
+    }
+
+    shape_html =
+    '<div id="customShape' + shape_options['id'] +'" style="display:inline;z-index:'+ z_index +';' + coordinates + '">'+
+      '<svg width="' + shape_options['shape_width'] + '" height="' + shape_options['shape_height'] + '">'+
+        '<rect width="'+ shape_options['shape_width'] +'" ' +
+              'height="' + shape_options['shape_height'] + '" ' +
+              'fill ="' + shape_options['shape_background_color'] + '" ' +
+              'stroke-width ="' + shape_options['shape_border_width'] + '" ' +
+              'stroke ="' + shape_options['shape_border_color'] + '" ' + dashed +
+        '"/>'+
+        'Sorry, your browser does not support inline SVG.'+
+      '</svg>'+
+    '</div>';
+  } else if(shape_options['shape_type'] == 'circle'){
+
+    if( shape_options['shape_width'] < shape_options['shape_height']){
+      radius = shape_options['shape_height']/2;
+      scale = shape_options['shape_height'] + shape_options['shape_border_width'];
+    } else{
+      radius = shape_options['shape_width']/2;
+      scale = shape_options['shape_width'] + shape_options['shape_border_width'];
+    }
+
+    shape_html =
+    '<div id="customShape' + shape_options['id'] +'" style="display:inline;z-index:'+ z_index +';' + coordinates + '">'+
+      '<svg width="' + scale + '" height="' + scale + '">'+
+        '<circle cx="' + (radius + shape_options['shape_border_width']/2 ) + '" ' +
+                'cy="' + (radius + shape_options['shape_border_width']/2 ) + '" ' +
+                'r="' + radius + '" ' +
+                'stroke ="' + shape_options['shape_border_color'] + '" ' +
+                'stroke-width="' + shape_options['shape_border_width'] + '" ' + dashed +
+                'fill ="' + shape_options['shape_background_color'] + '" ' +
+        '/>'+
+        'Sorry, your browser does not support inline SVG.'+
+      '</svg>'+
+    '</div>';
+
+  } else if(shape_options['shape_type'] == 'oval'){
+
+    shape_html =
+    '<div id="customShape' + shape_options['id'] +'" style="display:inline;z-index:'+ z_index +';' + coordinates + '">'+
+      '<svg width="' + (shape_options['shape_width'] + shape_options['shape_border_width']) + '" ' +
+           'height="' + (shape_options['shape_height'] + shape_options['shape_border_width']) + '">'+
+        '<ellipse cx="' + (shape_options['shape_width']/2+ shape_options['shape_border_width']/2) + '" ' +
+                 'cy="' + (shape_options['shape_height']/2+ shape_options['shape_border_width']/2) + '" ' +
+                 'rx="'+ shape_options['shape_width']/2 +'" ' +
+                 'ry="' + shape_options['shape_height']/2 + '" ' +
+                 'stroke ="' + shape_options['shape_border_color'] + '" '+
+                 'stroke-width="' + shape_options['shape_border_width'] + '" ' + dashed +
+                 'fill ="' + shape_options['shape_background_color'] + '" ' +
+        '/>'+
+        'Sorry, your browser does not support inline SVG.'+
+      '</svg>'+
+    '</div>';
+  }
+
+  current_lab = $('#lab-viewport').attr('data-path');
+
+  // Get action URL
+  var url = '/api/labs'+ current_lab +'/textobjects';
+  $.ajax({
+    timeout: TIMEOUT,
+    type: 'POST',
+    url: encodeURI(url),
+    dataType: 'json',
+    data: {
+      "data": shape_html,
+      "name": shape_options["shape_name"],
+      "type": shape_options["shape_type"]
+    },
+    success: function(data) {
+      if (data['status'] == 'success') {
+        $('#lab-viewport').append(shape_html);
+        $("#customShape"+shape_options["id"]).draggable();
+        addMessage('SUCCESS', 'Shape "' + shape_options["shape_type"] + ' - ' + shape_options['shape_name']  +'" added.');
+        // Hide and delete the modal (or will be posted twice)
+        $('body').children('.modal').modal('hide');
+        //addMessage('warning', "SHAPE ADDED");
+      } else {
+        // Fetching failed
+        addMessage('DANGER', data['status']);
+      }
+    },
+    error: function(data) {
+      addMessage('DANGER', getJsonMessage(data['responseText']));
+    }
+  });
+
+  // Stop or form will follow the action link
+  return false;
 });
 
 // Attach files
@@ -645,7 +814,6 @@ $(document).on('click', '.action-pictureget', function(e) {
 
 });
 
-
 //Show circle under cursor
 $(document).on('mousemove', '.follower-wrapper', function(e){
   var offset = $('.follower-wrapper img').offset()
@@ -669,8 +837,6 @@ $(document).on('click', '#follower', function(e){
     top: parseFloat($("#follower").css("top")) + 30
   };
 });
-
-
 
 // Get pictures list
 $(document).on('click', '.action-picturesget', function(e) {

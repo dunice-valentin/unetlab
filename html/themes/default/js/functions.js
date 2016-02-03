@@ -359,6 +359,38 @@ function deleteNode(id) {
 	return deferred.promise();
 }
 
+// Delete shape
+function deleteShape(id) {
+  var deferred = $.Deferred();
+  var type = 'DELETE';
+  var lab_filename = $('#lab-viewport').attr('data-path');
+  var url = '/api/labs' + lab_filename + '/textobjects/' + id;
+  $.ajax({
+    timeout: TIMEOUT,
+    type: type,
+    url: encodeURI(url),
+    dataType: 'json',
+    success: function(data) {
+      if (data['status'] == 'success') {
+        logger(1, 'DEBUG: shape deleted.');
+        deferred.resolve();
+      } else {
+        // Application error
+        logger(1, 'DEBUG: application error (' + data['status'] + ') on ' + type + ' ' + url + ' (' + data['message'] + ').');
+        deferred.reject(data['message']);
+      }
+    },
+    error: function(data) {
+      // Server error
+      var message = getJsonMessage(data['responseText']);
+      logger(1, 'DEBUG: server error (' + data['status'] + ') on ' + type + ' ' + url + '.');
+      logger(1, 'DEBUG: ' + message);
+      deferred.reject(message);
+    }
+  });
+  return deferred.promise();
+}
+
 // Delete user
 function deleteUser(path) {
 	var deferred = $.Deferred();
@@ -650,6 +682,70 @@ function getNodes(node_id) {
 		}
 	});
 	return deferred.promise();
+}
+
+//Get all textobjects
+function getTextObjects(){
+  var deferred = $.Deferred();
+  var lab_filename = $('#lab-viewport').attr('data-path');
+  var url = '/api/labs'+ lab_filename +'/textobjects';
+  var type = 'GET';
+  $.ajax({
+    timeout: TIMEOUT,
+    type: type,
+    url: encodeURI(url),
+    dataType: 'json',
+    success: function(data) {
+      if (data['status'] == 'success') {
+        logger(1, 'DEBUG: got shape(s) from lab "' + lab_filename + '".');
+        deferred.resolve(data['data']);
+      } else {
+        // Application error
+        logger(1, 'DEBUG: application error (' + data['status'] + ') on ' + type + ' ' + url + ' (' + data['message'] + ').');
+        deferred.reject(data['message']);
+      }
+    },
+    error: function(data) {
+      // Server error
+      var message = getJsonMessage(data['responseText']);
+      logger(1, 'DEBUG: server error (' + data['status'] + ') on ' + type + ' ' + url + '.');
+      logger(1, 'DEBUG: ' + message);
+      deferred.reject(message);
+    }
+  });
+  return deferred.promise();
+}
+
+//Get one textobject
+function getTextObject(id){
+  var deferred = $.Deferred();
+  var lab_filename = $('#lab-viewport').attr('data-path');
+  var url = '/api/labs' + lab_filename + '/textobjects/' + id;
+  var type = 'GET';
+  $.ajax({
+    timeout: TIMEOUT,
+    type: type,
+    url: encodeURI(url),
+    dataType: 'json',
+    success: function(data) {
+      if (data['status'] == 'success') {
+        logger(1, 'DEBUG: got shape ' + id +'from lab "' + lab_filename + '".');
+        deferred.resolve(data['data']);
+      } else {
+        // Application error
+        logger(1, 'DEBUG: application error (' + data['status'] + ') on ' + type + ' ' + url + ' (' + data['message'] + ').');
+        deferred.reject(data['message']);
+      }
+    },
+    error: function(data) {
+      // Server error
+      var message = getJsonMessage(data['responseText']);
+      logger(1, 'DEBUG: server error (' + data['status'] + ') on ' + type + ' ' + url + '.');
+      logger(1, 'DEBUG: ' + message);
+      deferred.reject(message);
+    }
+  });
+  return deferred.promise();
 }
 
 // Get node startup-config
@@ -1363,6 +1459,39 @@ function update(path) {
 	return deferred.promise();
 }
 
+// Edit custom shape
+function editTextObject(id, newData) {
+  var lab_filename = $('#lab-viewport').attr('data-path');
+  var deferred = $.Deferred();
+  var type = 'PUT';
+  var url = '/api/labs' + lab_filename + '/textobjects/' + id;
+  $.ajax({
+    timeout: TIMEOUT,
+    type: type,
+    url: encodeURI(url),
+    dataType: 'json',
+    data: newData, // newData is object with differences between old and new data
+    success: function(data) {
+      if (data['status'] == 'success') {
+        logger(1, 'DEBUG: custom shape text object updated.');
+        deferred.resolve(data['message']);
+      } else {
+        // Application error
+        logger(1, 'DEBUG: application error (' + data['status'] + ') on ' + type + ' ' + url + ' (' + data['message'] + ').');
+        deferred.reject(data['message']);
+      }
+    },
+    error: function(data) {
+      // Server error
+      var message = getJsonMessage(data['responseText']);
+      logger(1, 'DEBUG: server error (' + data['status'] + ') on ' + type + ' ' + url + '.');
+      logger(1, 'DEBUG: ' + message);
+      deferred.reject(message);
+    }
+  });
+  return deferred.promise();
+}
+
 // Wipe node(s)
 function wipe(node_id) {
 	var deferred = $.Deferred();
@@ -1662,10 +1791,74 @@ function printFormNodeConfigs(values, cb) {
 	cb && cb();
 }
 
+// Custom Shape form
+function printFormCustomShape(values){
+  var shapeTypes = ['rectangle', 'square', 'circle', 'oval'],
+      borderTypes= ['solid','dashed'],
+      id = (values == null || values['id'] == null) ? null : values['id'],
+      left = (values == null || values['left'] == null) ? null : values['left'],
+      top = (values == null || values['top'] == null) ? null : values['top'];
+
+  var html = '<form id="main" class="container col-md-12 col-lg-12 custom-shape-form">' +
+               '<div class="row">'+
+                  '<div class="col-md-8 col-md-offset-1 form-group">'+
+                   '<label class="col-md-3 control-label form-group-addon">Type</label>'+
+                   '<div class="col-md-5">'+
+                     '<select class="form-control shape-type-select">'+
+                     '</select>'+
+                   '</div>'+
+                 '</div> <br>'+
+                 '<div class="col-md-8 col-md-offset-1 form-group">'+
+                   '<label class="col-md-3 control-label form-group-addon">Name</label>'+
+                   '<div class="col-md-5">'+
+                     '<input type="text" class="form-control shape_name" placeholder="Name" required>'+
+                   '</div>'+
+                 '</div> <br>'+
+                 '<div class="col-md-8 col-md-offset-1 form-group">'+
+                   '<label class="col-md-3 control-label form-group-addon">Border-type</label>'+
+                   '<div class="col-md-5">'+
+                     '<select class="form-control border-type-select" >'+
+                     '</select>'+
+                   '</div>'+
+                 '</div> <br>'+
+                 '<div class="col-md-8 col-md-offset-1 form-group">'+
+                   '<label class="col-md-3 control-label form-group-addon">Border-color</label>'+
+                   '<div class="col-md-5">'+
+                     '<input type="color" class="form-control shape_border_color">'+
+                   '</div>'+
+                 '</div> <br>'+
+                 '<div class="col-md-8 col-md-offset-1 form-group">'+
+                   '<label class="col-md-3 control-label form-group-addon">Background-color</label>'+
+                   '<div class="col-md-5">'+
+                     '<input type="color" class="form-control shape_background_color">'+
+                   '</div>'+
+                 '</div> <br>'+
+                  '<button type="submit" class="btn btn-aqua col-md-offset-7">' + MESSAGES[47] + '</button>' +
+                  '<button type="button" class="btn btn-grey" data-dismiss="modal">' + MESSAGES[18] + '</button>'+
+               '</div>'+
+               '<input  type="text" class="hide left-coordinate" value="' + left + '">' +
+               '<input  type="text" class="hide top-coordinate" value="' + top + '">'+
+               '<input  type="text" class="hide id-shape" value="' + id + '">'+
+             '</form>';
+
+  addModal("ADD CUSTOM SHAPE", html, '');
+
+  $('.custom-shape-form .shape_background_color').val('#ffffff');
+
+  for (var i = 0; i < shapeTypes.length; i++){
+    $('.shape-type-select').append($('<option></option>').val(shapeTypes[i]).html(shapeTypes[i]));
+  }
+
+  for (var j = 0; j < borderTypes.length; j++){
+    $('.border-type-select').append($('<option></option>').val(borderTypes[j]).html(borderTypes[j]));
+  }
+
+};
+
 // Map picture
 function printNodesMap(values, cb) {
 	var title = values['name'] + ': ' + MESSAGES[123];
-	var html = '<div class="col-md-12">' + values.body + '</div><div class="text-right">' + values.footer + '</div>'
+	var html = '<div class="col-md-12">' + values.body + '</div><div class="text-right">' + values.footer + '</div>';
 	$('#config-data').html(html);
 	cb && cb();
 }
@@ -1994,7 +2187,7 @@ function printLabTopology() {
 	$('#lab-viewport').empty();
 	$('#lab-viewport').data('refreshing', true);
 
-	$.when(getNetworks(null), getNodes(null), getTopology()).done(function(networks, nodes, topology) {
+	$.when(getNetworks(null), getNodes(null), getTopology(), getTextObjects()).done(function(networks, nodes, topology, textObjects) {
 		var networkImgs = [],
 			nodesImgs = [];
 
@@ -2068,6 +2261,11 @@ function printLabTopology() {
 				}
 			}));
 		});
+
+    //add shapes from server to viewport
+    $.each(textObjects, function(key, value) {
+      $('#lab-viewport').append(value);
+    });
 
 		$.when.apply($, networkImgs.concat(nodesImgs)).done(function() {
 			// Drawing topology
